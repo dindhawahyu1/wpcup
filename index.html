@@ -246,11 +246,21 @@
   }
   .tiebreak-chip:hover{ border-color: var(--gold); }
   .tiebreak-chip.picked{
-    background: rgba(240,180,41,0.15); border-color: var(--gold); cursor:default;
+    background: rgba(240,180,41,0.15); border-color: var(--gold); cursor:pointer;
   }
+  .tiebreak-chip.picked:hover{ border-color: var(--red); }
   .tiebreak-rank{
     font-family: var(--font-mono); font-size: 10px; color: var(--gold); font-weight:600; margin-left:2px;
   }
+  .tiebreak-undo{
+    font-size: 13px; color: var(--ink-faint); line-height:1; margin-left:2px;
+  }
+  .tiebreak-chip.picked:hover .tiebreak-undo{ color: var(--red); }
+  .tiebreak-clear-all{
+    font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint);
+    text-decoration: underline; cursor:pointer; margin-top: 9px; display:inline-block;
+  }
+  .tiebreak-clear-all:hover{ color: var(--red); }
   .score-input{
     width: 38px; flex-shrink:0; text-align:center; background: var(--bg-raised);
     border: 1px solid var(--line-soft); color: var(--ink); font-family: var(--font-mono);
@@ -1082,15 +1092,20 @@ function TiebreakControl({group, tiedIdxs, logos, onSetOrder}){
   const chosenSoFar = manualOrder.filter(idx => tiedIdxs.includes(idx));
 
   function handleClick(idx){
-    if(chosenSoFar.includes(idx)) return; // already picked
-    const next = [...chosenSoFar, idx];
-    onSetOrder(next);
+    if(chosenSoFar.includes(idx)){
+      // Already picked — clicking again removes it, shifting the rest down.
+      const next = chosenSoFar.filter(i => i !== idx);
+      onSetOrder(next);
+    } else {
+      const next = [...chosenSoFar, idx];
+      onSetOrder(next);
+    }
   }
 
   return (
     <div className="tiebreak-box">
       <div className="tiebreak-label">
-        {tiedIdxs.length} players tied on wins and goal difference — click in order, best first, to settle the ranking.
+        {tiedIdxs.length} players tied on wins and goal difference — click in order, best first, to settle the ranking. Click a picked player again to undo it.
       </div>
       <div className="tiebreak-options">
         {tiedIdxs.map(idx => {
@@ -1098,14 +1113,19 @@ function TiebreakControl({group, tiedIdxs, logos, onSetOrder}){
           return (
             <div key={idx}
               className={`tiebreak-chip ${pickedRank !== -1 ? 'picked':''}`}
-              onClick={() => handleClick(idx)}>
+              onClick={() => handleClick(idx)}
+              title={pickedRank !== -1 ? 'Click to undo this pick' : 'Click to pick'}>
               <CrestIcon name={group.players[idx]} logos={logos} size={14} />
               {group.players[idx]}
               {pickedRank !== -1 && <span className="tiebreak-rank">#{pickedRank+1}</span>}
+              {pickedRank !== -1 && <span className="tiebreak-undo">×</span>}
             </div>
           );
         })}
       </div>
+      {chosenSoFar.length > 0 && (
+        <div className="tiebreak-clear-all" onClick={() => onSetOrder([])}>Clear all picks</div>
+      )}
     </div>
   );
 }
