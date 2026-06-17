@@ -65,7 +65,13 @@
     margin: 0;
     text-transform: uppercase;
   }
-  .subtitle{ color: var(--ink-dim); font-size: 13px; margin-top: 4px; }
+  .subtitle{ color: var(--ink-dim); font-size: 13px; margin-top: 4px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .sync-badge{
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 3px; text-transform: uppercase;
+  }
+  .sync-live{ background: rgba(61,220,151,0.12); color: var(--green); border: 1px solid rgba(61,220,151,0.3); }
+  .sync-local{ background: var(--bg-card); color: var(--ink-faint); border: 1px solid var(--line); }
 
   .stepper{ display:flex; gap: 6px; }
   .step-btn{
@@ -423,6 +429,8 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script type="text/plain" id="app-source">
 const { useState, useEffect, useRef, useCallback } = React;
@@ -435,6 +443,33 @@ const BRACKET_SIZE = 12;
 // Round 1 pairs within each half (3 matches per half -> 3 winners per half)
 const LEFT_R1_PAIRS = [[0,1],[2,3],[4,5]];
 const RIGHT_R1_PAIRS = [[6,7],[8,9],[10,11]];
+
+/* ===================== Firebase config ===================== */
+// To enable shared live data between multiple people, create a free Firebase project at
+// https://console.firebase.google.com, add a Realtime Database (start in test mode), then
+// paste your config object below. Leave apiKey as 'PASTE_YOUR_KEY_HERE' to keep this running
+// in local-only mode (each visitor gets their own private copy, saved in their own browser).
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBhvm69cBF1nXNmVd5OC9UygUUQ9p9pm7M",
+  authDomain: "paku-jaya-cup.firebaseapp.com",
+  databaseURL: "https://paku-jaya-cup-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "paku-jaya-cup",
+};
+const FIREBASE_ENABLED = FIREBASE_CONFIG.apiKey !== "PASTE_YOUR_KEY_HERE";
+// All visitors who load this page with Firebase configured share this same database path,
+// so everyone sees and edits the same tournament. Change this string if you want a fresh board.
+const SHARED_ROOM_PATH = 'tournament-rooms/default';
+
+let firebaseDbRef = null;
+if(FIREBASE_ENABLED){
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firebaseDbRef = firebase.database().ref(SHARED_ROOM_PATH);
+  }catch(e){
+    console.error('Firebase init failed, falling back to local-only storage', e);
+    firebaseDbRef = null;
+  }
+}
 
 /* ===================== Storage helpers ===================== */
 // Uses window.storage when available (Claude.ai artifact host); otherwise
@@ -462,6 +497,24 @@ async function saveState(state){
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
   }catch(e){ console.error('save failed', e); }
+}
+
+// Pushes the full tournament state to Firebase so every connected visitor receives it.
+function saveStateShared(state){
+  if(!firebaseDbRef) return;
+  try{ firebaseDbRef.set(state); }
+  catch(e){ console.error('Firebase save failed', e); }
+}
+// Subscribes to live updates from Firebase. Calls onUpdate(state) every time anyone
+// (including this browser) writes a change. Returns an unsubscribe function.
+function subscribeShared(onUpdate){
+  if(!firebaseDbRef) return () => {};
+  const listener = (snapshot) => {
+    const val = snapshot.val();
+    if(val) onUpdate(val);
+  };
+  firebaseDbRef.on('value', listener);
+  return () => firebaseDbRef.off('value', listener);
 }
 
 /* ===================== Club crest lookup (TheSportsDB free API) ===================== */
@@ -610,27 +663,60 @@ function App(){
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState('');
   const toastTimer = useRef(null);
+  const skipNextSave = useRef(false); // true right after we apply an update that came FROM Firebase, so we don't immediately re-save it as if it were a new local edit
+
+  function migrateState(initial){
+    if(!initial.logos) initial.logos = {}; // migrate older saved state
+    if(initial.groups){
+      initial.groups = initial.groups.map(g => g.manualTiebreak ? g : {...g, manualTiebreak: []}); // migrate older saved state
+    }
+    // The bracket structure changed from a 16-slot single-elim to a 12-slot (6 left / 6 right) layout.
+    // Old saved bracket data is incompatible, so reset just the bracket if it doesn't match the new shape.
+    if(!initial.bracket || initial.bracket.slots.length !== BRACKET_SIZE || !initial.bracket.r2bye){
+      initial.bracket = { slots: Array(BRACKET_SIZE).fill(null), winners: {}, scores: {}, r2bye: {left:null, right:null} };
+    }
+    return initial;
+  }
 
   useEffect(() => {
-    (async () => {
-      const s = await loadState();
-      const initial = s || defaultState();
-      if(!initial.logos) initial.logos = {}; // migrate older saved state
-      if(initial.groups){
-        initial.groups = initial.groups.map(g => g.manualTiebreak ? g : {...g, manualTiebreak: []}); // migrate older saved state
-      }
-      // The bracket structure changed from a 16-slot single-elim to a 12-slot (6 left / 6 right) layout.
-      // Old saved bracket data is incompatible, so reset just the bracket if it doesn't match the new shape.
-      if(!initial.bracket || initial.bracket.slots.length !== BRACKET_SIZE || !initial.bracket.r2bye){
-        initial.bracket = { slots: Array(BRACKET_SIZE).fill(null), winners: {}, scores: {}, r2bye: {left:null, right:null} };
-      }
-      setState(initial);
-      setLoaded(true);
-    })();
+    if(FIREBASE_ENABLED && firebaseDbRef){
+      // Shared mode: subscribe to the live Firebase value. Every visitor on this page gets
+      // the same data and the same updates, including ones made by other people in real time.
+      const unsubscribe = subscribeShared((incoming) => {
+        skipNextSave.current = true;
+        setState(migrateState(incoming));
+        setLoaded(true);
+      });
+      // If nothing exists yet at this path, seed it with a fresh default tournament.
+      firebaseDbRef.once('value').then(snap => {
+        if(!snap.val()){
+          const fresh = defaultState();
+          saveStateShared(fresh);
+        }
+      });
+      return unsubscribe;
+    } else {
+      // Local-only mode: load once from this browser's own storage.
+      (async () => {
+        const s = await loadState();
+        const initial = migrateState(s || defaultState());
+        setState(initial);
+        setLoaded(true);
+      })();
+    }
   }, []);
 
   useEffect(() => {
-    if(loaded && state) saveState(state);
+    if(!loaded || !state) return;
+    if(skipNextSave.current){
+      skipNextSave.current = false;
+      return;
+    }
+    if(FIREBASE_ENABLED && firebaseDbRef){
+      saveStateShared(state);
+    } else {
+      saveState(state);
+    }
   }, [state, loaded]);
 
   const showToast = useCallback((msg) => {
@@ -774,8 +860,13 @@ function Masthead({step, setStep, groupsReady, groupsComplete, rematchReady, rem
     <div className="masthead">
       <div className="masthead-left">
         <div>
-          <h1>Worldpanel Cup</h1>
-          <div className="subtitle">4 groups · round robin · 3rd/4th rematch · 16-slot qualifier bracket</div>
+          <h1>The Sixteen</h1>
+          <div className="subtitle">
+            4 groups · round robin · 3rd/4th rematch · 12-slot qualifier bracket
+            {FIREBASE_ENABLED
+              ? <span className="sync-badge sync-live">● Live shared</span>
+              : <span className="sync-badge sync-local">Saved to this browser only</span>}
+          </div>
         </div>
       </div>
       <div className="stepper">
