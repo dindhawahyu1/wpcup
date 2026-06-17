@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>16-Player Tournament Bracket</title>
+<style>
+  :root{
+    --bg: #14151a;
+    --bg-raised: #1c1e26;
+    --bg-card: #20222c;
+    --line: #313442;
+    --line-soft: #272a35;
+    --ink: #eef0f6;
+    --ink-dim: #9498ab;
+    --ink-faint: #5e6275;
+    --gold: #f0b429;
+    --gold-dim: #6b551f;
+    --green: #3ddc97;
+    --red: #ff6b6b;
+    --font-display: 'Aptos', 'Aptos Display', 'Oswald', 'Arial Narrow', sans-serif;
+    --font-body: 'Aptos', 'Inter', system-ui, sans-serif;
+    --font-mono: 'Aptos Mono', 'JetBrains Mono', 'Courier New', monospace;
+  }
+
+  @font-face {
+    font-family: 'Oswald';
+    src: local('Oswald');
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 10% 0%, rgba(240,180,41,0.07), transparent 45%),
+      radial-gradient(circle at 90% 100%, rgba(61,220,151,0.05), transparent 40%);
+  }
+
+  #app { max-width: 1320px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  /* ---------- Header ---------- */
+  .masthead{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap: 20px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px; margin-bottom: 26px;
+  }
+  .masthead-left{ display:flex; align-items:baseline; gap:14px; }
+  .brand-mark{
+    font-family: var(--font-mono);
+    font-size: 12px; letter-spacing: 0.18em;
+    color: var(--gold); border: 1px solid var(--gold-dim);
+    padding: 4px 8px; border-radius: 3px; text-transform: uppercase;
+  }
+  h1{
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(28px, 4vw, 40px);
+    letter-spacing: 0.01em;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  .subtitle{ color: var(--ink-dim); font-size: 13px; margin-top: 4px; }
+
+  .stepper{ display:flex; gap: 6px; }
+  .step-btn{
+    font-family: var(--font-mono);
+    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    background: var(--bg-card); border: 1px solid var(--line);
+    color: var(--ink-dim); padding: 9px 14px; border-radius: 4px;
+    cursor: pointer; transition: all .15s ease; white-space:nowrap;
+  }
+  .step-btn .num{ color: var(--ink-faint); margin-right: 6px; }
+  .step-btn.active{ background: var(--gold); color: #1a1500; border-color: var(--gold); font-weight: 600; }
+  .step-btn.active .num{ color: #1a1500; opacity: 0.6;}
+  .step-btn.done:not(.active){ color: var(--green); border-color: rgba(61,220,151,0.3); }
+  .step-btn:hover:not(.active){ border-color: var(--ink-faint); color: var(--ink); }
+
+  /* ---------- Generic section ---------- */
+  .panel{ animation: fadeIn .25s ease; }
+  @keyframes fadeIn{ from{opacity:0; transform: translateY(4px);} to {opacity:1; transform: translateY(0);} }
+
+  .section-head{ margin-bottom: 18px; }
+  .section-head h2{
+    font-family: var(--font-display); text-transform: uppercase;
+    font-size: 20px; letter-spacing: 0.03em; margin: 0 0 4px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .section-head p{ color: var(--ink-dim); font-size: 13.5px; margin:0; max-width: 640px; }
+
+  /* ---------- Setup ---------- */
+  .setup-grid{
+    display:grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin-bottom: 22px;
+  }
+  @media (max-width: 900px){ .setup-grid{ grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px){ .setup-grid{ grid-template-columns: 1fr; } }
+
+  .group-setup-card{
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px;
+  }
+  .group-setup-card h3{
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em;
+    color: var(--gold); margin: 0 0 10px; text-transform: uppercase;
+  }
+  .player-input{
+    width: 100%; background: var(--bg-raised); border: 1px solid var(--line-soft);
+    color: var(--ink); font-family: var(--font-body); font-size: 13.5px;
+    padding: 8px 10px; border-radius: 5px; outline: none;
+    transition: border-color .15s;
+  }
+  .player-input:focus{ border-color: var(--gold); }
+  .player-input::placeholder{ color: var(--ink-faint); }
+
+  .player-input-row{ display:flex; align-items:center; gap: 7px; margin-bottom: 7px; }
+  .player-input-row .player-input{ margin-bottom: 0; flex: 1; min-width: 0; }
+  .crest-thumb{
+    width: 28px; height: 28px; border-radius: 5px; object-fit: contain;
+    background: var(--bg-raised); border: 1px solid var(--line-soft); flex-shrink: 0;
+    padding: 2px;
+  }
+  .crest-thumb-empty{
+    display:flex; align-items:center; justify-content:center;
+    color: var(--ink-faint); font-size: 14px;
+  }
+  .crest-fetch-btn{
+    width: 28px; height: 28px; flex-shrink: 0; border-radius: 5px;
+    background: var(--bg-raised); border: 1px solid var(--line-soft); color: var(--ink-dim);
+    cursor: pointer; font-size: 13px; display:flex; align-items:center; justify-content:center;
+    transition: all .15s ease;
+  }
+  .crest-fetch-btn:hover:not(:disabled){ border-color: var(--gold); color: var(--gold); }
+  .crest-fetch-btn:disabled{ opacity: 0.35; cursor: not-allowed; }
+
+  .btn{
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em;
+    text-transform: uppercase; border-radius: 5px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--bg-card); color: var(--ink);
+    padding: 10px 18px; transition: all .15s ease;
+  }
+  .btn:hover{ border-color: var(--ink-faint); }
+  .btn-primary{ background: var(--gold); border-color: var(--gold); color: #1a1500; font-weight: 600; }
+  .btn-primary:hover{ filter: brightness(1.08); }
+  .btn-ghost{ background: transparent; }
+  .btn-danger{ color: var(--red); border-color: rgba(255,107,107,0.3); background:transparent; }
+  .btn-danger:hover{ background: rgba(255,107,107,0.08); border-color: var(--red); }
+  .btn:disabled{ opacity: 0.4; cursor: not-allowed; }
+  .btn-row{ display:flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+  /* ---------- Groups / standings ---------- */
+  .groups-wrap{
+    display:grid; grid-template-columns: repeat(2, 1fr); gap: 20px;
+  }
+  @media (max-width: 900px){ .groups-wrap{ grid-template-columns: 1fr; } }
+
+  .group-card{
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px;
+    overflow:hidden;
+  }
+  .group-card-head{
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 14px 16px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--bg-raised), var(--bg-card));
+  }
+  .group-card-head h3{
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.03em;
+    font-size: 16px; margin:0;
+  }
+  .group-status{ font-family: var(--font-mono); font-size: 11px; color: var(--ink-dim); }
+  .group-status.complete{ color: var(--green); }
+
+  table.standings{ width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.standings th{
+    text-align: left; font-family: var(--font-mono); font-size: 10.5px;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint);
+    padding: 8px 12px 6px; font-weight: 500;
+  }
+  table.standings td{ padding: 7px 12px; border-top: 1px solid var(--line-soft); }
+  table.standings tr.rank-1 td:first-child, table.standings tr.rank-2 td:first-child{ color: var(--gold); }
+  table.standings .rk{ font-family: var(--font-mono); color: var(--ink-faint); width: 20px; }
+  table.standings .pname{ font-weight: 500; }
+  table.standings .tag{
+    font-family: var(--font-mono); font-size: 9.5px; padding: 2px 6px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: 0.04em; margin-left: 6px;
+  }
+  .tag-q{ background: rgba(240,180,41,0.15); color: var(--gold); border:1px solid rgba(240,180,41,0.3); }
+  .tag-r{ background: rgba(94,98,117,0.2); color: var(--ink-dim); border:1px solid var(--line); }
+  table.standings .num{ font-family: var(--font-mono); text-align:center; color: var(--ink-dim); }
+
+  .matches-list{ padding: 10px 16px 16px; }
+  .matches-list h4{
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em;
+    color: var(--ink-faint); text-transform: uppercase; margin: 10px 0 8px;
+  }
+  .match-row{
+    display:flex; align-items:center; gap: 10px; padding: 7px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .match-row:last-child{ border-bottom: none; }
+  .match-p{
+    flex:1; font-size: 13px; padding: 7px 10px; border-radius: 5px;
+    background: var(--bg-raised); border: 1px solid var(--line-soft);
+    text-align:center; transition: all .12s ease;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    display:flex; align-items:center; justify-content:center; gap:4px;
+  }
+  .match-p.winner{ background: rgba(61,220,151,0.12); border-color: rgba(61,220,151,0.4); color: var(--green); font-weight:600; }
+  .match-vs{ font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); }
+
+  .score-row{ gap: 8px; }
+  .draw-note{
+    font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint);
+    padding: 4px 2px 10px; letter-spacing: 0.01em;
+  }
+  .tie-warning{
+    font-family: var(--font-mono); font-size: 11px; color: var(--red);
+    padding: 4px 2px 10px; letter-spacing: 0.01em;
+  }
+  .bracket-tie-warning{
+    text-align:center; font-size: 10px; padding: 6px 4px 0; width: 152px;
+  }
+  .tiebreak-box{
+    background: rgba(240,180,41,0.06); border: 1px solid var(--gold-dim); border-radius: 7px;
+    padding: 12px 14px; margin: 0 14px 14px;
+  }
+  .tiebreak-label{
+    font-size: 12px; color: var(--ink-dim); margin-bottom: 9px; line-height:1.4;
+  }
+  .tiebreak-options{ display:flex; gap: 8px; flex-wrap: wrap; }
+  .tiebreak-chip{
+    display:flex; align-items:center; gap:5px; font-size: 12.5px;
+    background: var(--bg-raised); border: 1px solid var(--line-soft); border-radius: 5px;
+    padding: 6px 10px; cursor:pointer; transition: all .12s ease;
+  }
+  .tiebreak-chip:hover{ border-color: var(--gold); }
+  .tiebreak-chip.picked{
+    background: rgba(240,180,41,0.15); border-color: var(--gold); cursor:default;
+  }
+  .tiebreak-rank{
+    font-family: var(--font-mono); font-size: 10px; color: var(--gold); font-weight:600; margin-left:2px;
+  }
+  .score-input{
+    width: 38px; flex-shrink:0; text-align:center; background: var(--bg-raised);
+    border: 1px solid var(--line-soft); color: var(--ink); font-family: var(--font-mono);
+    font-size: 14px; padding: 6px 4px; border-radius: 5px; outline:none;
+    -moz-appearance: textfield;
+  }
+  .score-input:focus{ border-color: var(--gold); }
+  .score-input::-webkit-outer-spin-button, .score-input::-webkit-inner-spin-button{
+    -webkit-appearance: none; margin: 0;
+  }
+
+  /* ---------- Rematch ---------- */
+  .rematch-grid{ display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 900px){ .rematch-grid{ grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px){ .rematch-grid{ grid-template-columns: 1fr; } }
+  .rematch-card{
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+  }
+  .rematch-card .rlabel{
+    font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint);
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px;
+  }
+  .rematch-card .rgroup{ color: var(--gold); }
+
+  /* ---------- Bracket ---------- */
+  .bracket-tools{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom: 18px;
+  }
+  .pool-bar{
+    display:flex; gap: 8px; flex-wrap: wrap; padding: 12px; background: var(--bg-card);
+    border: 1px solid var(--line); border-radius: 8px; margin-bottom: 22px; min-height: 44px;
+  }
+  .pool-chip{
+    font-family: var(--font-mono); font-size: 12px; padding: 7px 12px; border-radius: 5px;
+    background: var(--bg-raised); border: 1px solid var(--gold-dim); color: var(--ink);
+    cursor: grab; user-select:none; display:flex; align-items:center; gap:6px;
+  }
+  .pool-chip:active{ cursor: grabbing; }
+  .pool-chip .src{ color: var(--ink-faint); font-size: 9.5px; }
+  .pool-empty{ color: var(--ink-faint); font-size: 13px; font-family: var(--font-mono); padding: 8px 4px; }
+
+  .bracket-scroll{ overflow-x: auto; padding-bottom: 20px; position: relative; }
+  .bracket-scroll-hint{
+    font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint);
+    text-align:center; margin-bottom: 10px; letter-spacing: 0.04em;
+  }
+  .bracket{ display:flex; gap: 26px; min-width: max-content; padding: 6px 6px 6px; }
+  .bracket-mirrored{ gap: 0; align-items: center; }
+  .bracket-half{ display:flex; gap: 26px; }
+  .bracket-half-left{ flex-direction: row; }
+  .bracket-half-right{ flex-direction: row; }
+  .bracket-center{ flex-direction: column; gap: 22px; padding: 0 18px; align-items:center; }
+  .bracket-round{ display:flex; flex-direction:column; justify-content: space-around; gap: 0; min-width: 152px; }
+  .bracket-round-title{
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-faint); text-align:center; margin-bottom: 14px;
+  }
+  .bracket-match-wrap{ display:flex; flex-direction:column; justify-content:center; flex: 1; position:relative; }
+  .bracket-match{
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 7px;
+    width: 152px; position:relative; z-index:2;
+  }
+  .bracket-slot{
+    display:flex; align-items:center; justify-content:space-between; gap: 5px;
+    padding: 8px 8px; font-size: 12.5px; min-height: 34px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .bracket-slot:last-child{ border-bottom: none; }
+  .bracket-slot.droppable{ background: rgba(240,180,41,0.06); }
+  .bracket-slot.droppable.dragover{ background: rgba(240,180,41,0.22); outline: 1px dashed var(--gold); outline-offset: -2px;}
+  .bracket-slot .pn{
+    flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer;
+    display:flex; align-items:center; gap:0; min-width:0;
+  }
+  .bracket-slot.empty .pn{ color: var(--ink-faint); font-family: var(--font-mono); font-size: 11.5px; cursor:default; }
+  .bracket-slot.winner{ color: var(--green); font-weight: 600; }
+  .bracket-slot.winner .pn::after{ content: ''; }
+  .bracket-slot .seed{ font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-faint); }
+  .bracket-score-input{
+    width: 30px; flex-shrink:0; text-align:center; background: var(--bg-raised);
+    border: 1px solid var(--line-soft); color: var(--ink); font-family: var(--font-mono);
+    font-size: 12.5px; padding: 3px 2px; border-radius: 4px; outline:none; margin-right: 4px;
+  }
+  .bracket-score-input:focus{ border-color: var(--gold); }
+  .bracket-score-input::-webkit-outer-spin-button, .bracket-score-input::-webkit-inner-spin-button{
+    -webkit-appearance: none; margin: 0;
+  }
+  .bracket-slot .clear-x{
+    color: var(--ink-faint); cursor:pointer; font-size: 14px; line-height:1; padding: 0 2px;
+    opacity: 0; transition: opacity .12s;
+  }
+  .bracket-slot:hover .clear-x{ opacity: 1; }
+  .bracket-slot .clear-x:hover{ color: var(--red); }
+
+  .connector{
+    position:absolute; right: -46px; top:0; bottom:0; width: 46px; pointer-events:none;
+  }
+
+  .bye-picker{
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 7px;
+    width: 152px; overflow:hidden;
+  }
+  .bye-picker-row{
+    display:flex; align-items:center; justify-content:space-between; gap:6px;
+    padding: 8px 10px; font-size: 12.5px; min-height: 32px; cursor:pointer;
+    border-bottom: 1px solid var(--line-soft); transition: background .12s ease;
+  }
+  .bye-picker-row:last-child{ border-bottom: none; }
+  .bye-picker-row:hover:not(.empty){ background: var(--bg-raised); }
+  .bye-picker-row.empty{ cursor:default; color: var(--ink-faint); font-family: var(--font-mono); font-size: 11.5px; }
+  .bye-picker-row .pn{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:4px; min-width:0; }
+  .bye-picker-row .bye-tag{
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.05em; text-transform:uppercase;
+    color: var(--ink-faint); flex-shrink:0;
+  }
+  .bye-picker-row.selected{ background: rgba(240,180,41,0.12); }
+  .bye-picker-row.selected .bye-tag{ color: var(--gold); font-weight:600; }
+
+  .champion-card{
+    background: linear-gradient(135deg, rgba(240,180,41,0.18), rgba(240,180,41,0.04));
+    border: 1px solid var(--gold); border-radius: 8px; width: 152px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding: 18px 10px; gap: 6px; text-align:center;
+  }
+  .champion-card .ctitle{ font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--gold); text-transform:uppercase; }
+  .champion-card .cname{ font-family: var(--font-display); font-size: 19px; text-transform:uppercase; }
+  .champion-card .cname.empty{ color: var(--ink-faint); font-family: var(--font-mono); font-size: 12px; text-transform:none; }
+
+  .reset-bar{ text-align:right; margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--line); }
+
+  /* ---------- Misc ---------- */
+  .empty-state{
+    text-align:center; padding: 60px 20px; color: var(--ink-dim);
+  }
+  .empty-state .big{ font-family: var(--font-display); font-size: 22px; text-transform:uppercase; color: var(--ink); margin-bottom:8px; }
+
+  .toast{
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px);
+    background: var(--bg-card); border: 1px solid var(--gold); color: var(--ink);
+    font-family: var(--font-mono); font-size: 12.5px; padding: 10px 18px; border-radius: 6px;
+    opacity: 0; transition: all .25s ease; pointer-events:none; z-index: 50;
+  }
+  .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  ::-webkit-scrollbar{ height: 8px; width: 8px; }
+  ::-webkit-scrollbar-track{ background: var(--bg); }
+  ::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 4px; }
+
+  :focus-visible{ outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div style="max-width:600px;margin:80px auto;text-align:center;font-family:sans-serif;color:#9498ab;">
+    Loading… if this message doesn't disappear in a few seconds, your browser may be blocking the script files needed to run this page (react/babel from unpkg.com). Try opening this file with an internet connection, or in a different browser.
+  </div>
+</div>
+
+<script>
+  window.addEventListener('error', function(e){
+    var appEl = document.getElementById('app');
+    if(appEl && !appEl.dataset.mounted){
+      appEl.innerHTML = '<div style="max-width:600px;margin:80px auto;text-align:center;font-family:sans-serif;color:#ff6b6b;padding:20px;border:1px solid #ff6b6b;border-radius:8px;">' +
+        '<strong>Something went wrong loading this page.</strong><br><br>' +
+        'Error: ' + (e.message || 'unknown error') + '<br><br>' +
+        'This usually means the page could not load React/Babel from the CDN (unpkg.com). Check your internet connection or try a different browser.' +
+        '</div>';
+    }
+  });
+</script>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/plain" id="app-source">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ===================== Constants ===================== */
+const GROUP_NAMES = ['A', 'B', 'C', 'D'];
+const STORAGE_KEY = 'tournament-state-v1';
+// 12 seed slots total: 6 on the left half (indices 0-5), 6 on the right half (indices 6-11).
+const BRACKET_SIZE = 12;
+// Round 1 pairs within each half (3 matches per half -> 3 winners per half)
+const LEFT_R1_PAIRS = [[0,1],[2,3],[4,5]];
+const RIGHT_R1_PAIRS = [[6,7],[8,9],[10,11]];
+
+/* ===================== Storage helpers ===================== */
+// Uses window.storage when available (Claude.ai artifact host); otherwise
+// falls back to localStorage so the file also works as a plain standalone HTML page.
+const hasHostStorage = (typeof window !== 'undefined') && window.storage && typeof window.storage.get === 'function';
+
+async function loadState(){
+  try{
+    if(hasHostStorage){
+      const res = await window.storage.get(STORAGE_KEY, false);
+      return res ? JSON.parse(res.value) : null;
+    }
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){
+    console.error('loadState failed', e);
+    return null;
+  }
+}
+async function saveState(state){
+  try{
+    if(hasHostStorage){
+      await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+    } else {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+  }catch(e){ console.error('save failed', e); }
+}
+
+/* ===================== Club crest lookup (TheSportsDB free API) ===================== */
+// Free test key '123', no signup required. Returns null if no badge is found
+// (e.g. for placeholder/demo names, lower-league or non-football clubs not in their database).
+async function fetchClubCrest(clubName){
+  if(!clubName || !clubName.trim()) return null;
+  try{
+    const url = `https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t=${encodeURIComponent(clubName.trim())}`;
+    const res = await fetch(url);
+    if(!res.ok) return null;
+    const data = await res.json();
+    const team = data && data.teams && data.teams[0];
+    if(team && team.strBadge) return team.strBadge;
+    return null;
+  }catch(e){
+    console.error('crest fetch failed for', clubName, e);
+    return null;
+  }
+}
+
+/* ===================== Default state builders ===================== */
+function emptyGroup(name){
+  return {
+    name,
+    players: ['', '', '', ''], // 4 player names
+    matches: null, // generated when players are finalized: [{p1,p2,winner}]
+    finalized: false,
+    manualTiebreak: [], // player idxs in user-chosen order, used only when automatic stats are fully tied
+  };
+}
+function defaultState(){
+  return {
+    step: 0, // 0 setup, 1 groups, 2 rematch, 3 bracket
+    groups: GROUP_NAMES.map(emptyGroup),
+    rematch: null, // [{groupIdx, p3, p4, winner}]
+    bracket: {
+      slots: Array(BRACKET_SIZE).fill(null), // {name, source}, 12 seed slots (0-5 left, 6-11 right)
+      winners: {}, // matchKey -> winner name, key = `r{round}-{idx}`
+      scores: {}, // matchKey -> {a, b} goals for slot A / slot B of that match
+      r2bye: { left: null, right: null }, // which R1-winner-slot (0,1, or 2 within the half) gets the round-2 bye
+    },
+    logos: {}, // playerName -> crest image URL (fetched from TheSportsDB)
+  };
+}
+
+/* ===================== Round robin / standings logic ===================== */
+function roundRobinPairs(){
+  // 4 players idx 0..3 -> 6 matches
+  return [[0,1],[2,3],[0,2],[1,3],[0,3],[1,2]];
+}
+
+// Returns the local index (m.p1 or m.p2) of the winner based on goals, or null if scores
+// aren't both entered yet or are tied (a tie can't determine a winner in knockout/group play here).
+function deriveWinnerFromScores(score1, score2, p1, p2){
+  if(score1 == null || score2 == null || score1 === '' || score2 === '') return null;
+  const s1 = Number(score1), s2 = Number(score2);
+  if(Number.isNaN(s1) || Number.isNaN(s2)) return null;
+  if(s1 === s2) return null;
+  return s1 > s2 ? p1 : p2;
+}
+// Same idea but returns the winner's name directly (used for rematch, which is keyed by name not index).
+function deriveWinnerFromScoresNamed(score1, score2, name1, name2){
+  if(score1 == null || score2 == null || score1 === '' || score2 === '') return null;
+  const s1 = Number(score1), s2 = Number(score2);
+  if(Number.isNaN(s1) || Number.isNaN(s2)) return null;
+  if(s1 === s2) return null;
+  return s1 > s2 ? name1 : name2;
+}
+// True when both scores are filled in and equal — a draw, which can't produce a winner here
+// since every stage of this tournament is knockout-style or needs a single advancing player.
+function isTiedScore(score1, score2){
+  if(score1 == null || score2 == null || score1 === '' || score2 === '') return false;
+  const s1 = Number(score1), s2 = Number(score2);
+  if(Number.isNaN(s1) || Number.isNaN(s2)) return false;
+  return s1 === s2;
+}
+
+function computeStandings(group){
+  const names = group.players;
+  const wins = [0,0,0,0];
+  const draws = [0,0,0,0];
+  const goalsFor = [0,0,0,0];
+  const goalsAgainst = [0,0,0,0];
+  if(group.matches){
+    group.matches.forEach(m => {
+      if(m.winner != null) wins[m.winner]++;
+      else if(isTiedScore(m.score1, m.score2)){ draws[m.p1]++; draws[m.p2]++; }
+      const s1 = Number(m.score1), s2 = Number(m.score2);
+      if(m.score1 != null && m.score1 !== '' && !Number.isNaN(s1)){
+        goalsFor[m.p1] += s1; goalsAgainst[m.p2] += s1;
+      }
+      if(m.score2 != null && m.score2 !== '' && !Number.isNaN(s2)){
+        goalsFor[m.p2] += s2; goalsAgainst[m.p1] += s2;
+      }
+    });
+  }
+  // Automatic ranking criteria: wins, then goal difference, then goals scored.
+  // When two or more players are still exactly equal on all of these, the user can
+  // manually decide the order (group.manualTiebreak: array of player idx, most-qualified first).
+  function autoCompare(a, b){
+    if(wins[b] !== wins[a]) return wins[b] - wins[a];
+    const gdA = goalsFor[a] - goalsAgainst[a];
+    const gdB = goalsFor[b] - goalsAgainst[b];
+    if(gdB !== gdA) return gdB - gdA;
+    return goalsFor[b] - goalsFor[a];
+  }
+  const manualOrder = group.manualTiebreak || [];
+  const order = [0,1,2,3].slice().sort((a,b) => {
+    const cmp = autoCompare(a,b);
+    if(cmp !== 0) return cmp;
+    // Fully tied on automatic criteria — fall back to the user's manual order, if set.
+    const ia = manualOrder.indexOf(a), ib = manualOrder.indexOf(b);
+    if(ia !== -1 && ib !== -1) return ia - ib;
+    return 0; // no manual choice yet — keep a stable (arbitrary) order until the user decides
+  });
+  // Figure out which groups of players are tied on automatic criteria alone (ignoring manual order),
+  // so the UI can show a "break the tie" control only where it's actually needed.
+  const tiedGroups = [];
+  let i = 0;
+  while(i < order.length){
+    let j = i;
+    while(j+1 < order.length && autoCompare(order[i], order[j+1]) === 0) j++;
+    if(j > i) tiedGroups.push(order.slice(i, j+1));
+    i = j+1;
+  }
+  return order.map((idx, rank) => ({
+    idx, name: names[idx], wins: wins[idx], draws: draws[idx], rank: rank+1,
+    goalsFor: goalsFor[idx], goalsAgainst: goalsAgainst[idx], goalDiff: goalsFor[idx]-goalsAgainst[idx],
+    tiedGroups
+  }));
+}
+
+function groupComplete(group){
+  if(!group.matches) return false;
+  return group.matches.every(m => m.winner != null || isTiedScore(m.score1, m.score2));
+}
+
+function allPlayersFilled(group){
+  return group.players.every(p => p.trim().length > 0);
+}
+
+/* ===================== Main App ===================== */
+function App(){
+  const [state, setState] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      const s = await loadState();
+      const initial = s || defaultState();
+      if(!initial.logos) initial.logos = {}; // migrate older saved state
+      if(initial.groups){
+        initial.groups = initial.groups.map(g => g.manualTiebreak ? g : {...g, manualTiebreak: []}); // migrate older saved state
+      }
+      // The bracket structure changed from a 16-slot single-elim to a 12-slot (6 left / 6 right) layout.
+      // Old saved bracket data is incompatible, so reset just the bracket if it doesn't match the new shape.
+      if(!initial.bracket || initial.bracket.slots.length !== BRACKET_SIZE || !initial.bracket.r2bye){
+        initial.bracket = { slots: Array(BRACKET_SIZE).fill(null), winners: {}, scores: {}, r2bye: {left:null, right:null} };
+      }
+      setState(initial);
+      setLoaded(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if(loaded && state) saveState(state);
+  }, [state, loaded]);
+
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    if(toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 2200);
+  }, []);
+
+  async function fetchAndStoreCrest(clubName){
+    if(!clubName || !clubName.trim()) return;
+    const url = await fetchClubCrest(clubName);
+    setState(s => ({...s, logos: {...s.logos, [clubName]: url || 'NOT_FOUND'}}));
+    if(!url) showToast(`No crest found for "${clubName}"`);
+  }
+
+  if(!loaded || !state){
+    return <div className="empty-state"><div className="big">Loading bracket…</div></div>;
+  }
+
+  const setStep = (step) => setState(s => ({...s, step}));
+
+  const groupsReady = state.groups.every(g => allPlayersFilled(g));
+  const groupsComplete = state.groups.every(g => groupComplete(g));
+  const rematchReady = !!state.rematch;
+  const rematchComplete = state.rematch && state.rematch.every(r => r.winner != null);
+
+  function startGroupStage(){
+    const newGroups = state.groups.map(g => ({
+      ...g,
+      matches: roundRobinPairs().map(([a,b]) => ({p1:a, p2:b, score1:null, score2:null, winner:null})),
+      finalized: true,
+    }));
+    setState(s => ({...s, groups: newGroups, step: 1}));
+  }
+
+  function setMatchScore(groupIdx, matchIdx, side, value){
+    setState(s => {
+      const groups = s.groups.map((g, i) => {
+        if(i !== groupIdx) return g;
+        const matches = g.matches.map((m, mi) => {
+          if(mi !== matchIdx) return m;
+          const updated = {...m, [side]: value};
+          updated.winner = deriveWinnerFromScores(updated.score1, updated.score2, m.p1, m.p2);
+          return updated;
+        });
+        return {...g, matches};
+      });
+      return {...s, groups};
+    });
+  }
+
+  // Records the user's manual order for a specific set of tied players within a group.
+  // tiedIdxs is the full set of player indices currently tied together; orderedIdxs is the
+  // subset the user has clicked so far, best-first. Any previous choices for this exact tied
+  // group are replaced; choices belonging to other tied groups in the same group are preserved.
+  function setManualTiebreak(groupIdx, tiedIdxs, orderedIdxs){
+    setState(s => {
+      const groups = s.groups.map((g, i) => {
+        if(i !== groupIdx) return g;
+        const prevOrder = g.manualTiebreak || [];
+        const keptFromOther = prevOrder.filter(idx => !tiedIdxs.includes(idx));
+        return {...g, manualTiebreak: [...keptFromOther, ...orderedIdxs]};
+      });
+      return {...s, groups};
+    });
+  }
+
+  function buildRematch(){
+    const rematch = state.groups.map((g, gi) => {
+      const standings = computeStandings(g);
+      const third = standings[2];
+      const fourth = standings[3];
+      return { groupIdx: gi, p3: third.name, p4: fourth.name, score3:null, score4:null, winner: null };
+    });
+    setState(s => ({...s, rematch, step: 2}));
+  }
+
+  function setRematchScore(idx, side, value){
+    setState(s => {
+      const rematch = s.rematch.map((r, i) => {
+        if(i !== idx) return r;
+        const updated = {...r, [side]: value};
+        const winnerName = deriveWinnerFromScoresNamed(updated.score3, updated.score4, r.p3, r.p4);
+        updated.winner = winnerName;
+        return updated;
+      });
+      return {...s, rematch};
+    });
+  }
+
+  function goToBracket(){
+    setState(s => ({...s, step: 3}));
+  }
+
+  function resetAll(){
+    if(window.confirm('Reset the entire tournament? This clears all groups, results, and the bracket.')){
+      setState(defaultState());
+    }
+  }
+
+  return (
+    <div>
+      <Masthead step={state.step} setStep={setStep}
+        groupsReady={groupsReady} groupsComplete={groupsComplete}
+        rematchReady={rematchReady} rematchComplete={rematchComplete} />
+
+      {state.step === 0 && (
+        <SetupPanel state={state} setState={setState} onStart={startGroupStage} fetchAndStoreCrest={fetchAndStoreCrest} />
+      )}
+      {state.step === 1 && (
+        <GroupsPanel state={state} setMatchScore={setMatchScore} setManualTiebreak={setManualTiebreak}
+          groupsComplete={groupsComplete} onProceed={buildRematch} showToast={showToast}
+          fetchAndStoreCrest={fetchAndStoreCrest} />
+      )}
+      {state.step === 2 && (
+        <RematchPanel rematch={state.rematch} setRematchScore={setRematchScore}
+          complete={rematchComplete} onProceed={goToBracket} groups={state.groups} logos={state.logos} />
+      )}
+      {state.step === 3 && (
+        <BracketPanel state={state} setState={setState} showToast={showToast} />
+      )}
+
+      <div className="reset-bar">
+        <button className="btn btn-danger" onClick={resetAll}>Reset entire tournament</button>
+      </div>
+
+      <div className={`toast ${toast ? 'show' : ''}`}>{toast}</div>
+    </div>
+  );
+}
+
+/* ===================== Masthead / Stepper ===================== */
+function Masthead({step, setStep, groupsReady, groupsComplete, rematchReady, rematchComplete}){
+  const steps = [
+    {label: 'Setup', enabled: true, done: groupsReady},
+    {label: 'Groups', enabled: groupsReady, done: groupsComplete},
+    {label: 'Rematch', enabled: groupsComplete, done: rematchComplete},
+    {label: 'Bracket', enabled: rematchComplete, done: false},
+  ];
+  return (
+    <div className="masthead">
+      <div className="masthead-left">
+        <div>
+          <h1>The Sixteen</h1>
+          <div className="subtitle">4 groups · round robin · 3rd/4th rematch · 16-slot qualifier bracket</div>
+        </div>
+      </div>
+      <div className="stepper">
+        {steps.map((st, i) => (
+          <button key={i}
+            className={`step-btn ${step===i?'active':''} ${st.done?'done':''}`}
+            disabled={!st.enabled}
+            onClick={() => st.enabled && setStep(i)}>
+            <span className="num">{i+1}</span>{st.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== Setup Panel ===================== */
+function SetupPanel({state, setState, onStart, fetchAndStoreCrest}){
+  const [loadingCrest, setLoadingCrest] = useState(null);
+
+  function updatePlayer(groupIdx, playerIdx, value){
+    setState(s => {
+      const groups = s.groups.map((g, i) => {
+        if(i !== groupIdx) return g;
+        const players = g.players.slice();
+        players[playerIdx] = value;
+        return {...g, players};
+      });
+      return {...s, groups};
+    });
+  }
+
+  function fillDemo(){
+    const demoNames = [
+      'Alvarez','Bishop','Chen','Dawson','Ellis','Frost','Gomez','Hale',
+      'Ito','Jansen','Kovac','Lindholm','Mora','Nakata','O\'Brien','Park'
+    ];
+    setState(s => {
+      const groups = s.groups.map((g, gi) => ({
+        ...g, players: demoNames.slice(gi*4, gi*4+4)
+      }));
+      return {...s, groups};
+    });
+  }
+
+  async function handleFetchCrest(name){
+    if(!name || !name.trim()) return;
+    setLoadingCrest(name);
+    await fetchAndStoreCrest(name);
+    setLoadingCrest(null);
+  }
+
+  const filledCount = state.groups.reduce((acc,g) => acc + g.players.filter(p=>p.trim()).length, 0);
+  const ready = filledCount === 16;
+
+  return (
+    <div className="panel">
+      <div className="section-head">
+        <h2>Set the rosters</h2>
+        <p>Enter all 16 club names across the four groups. Click the crest icon next to a name to fetch its club badge from TheSportsDB (works best for real, well-known football clubs — not every name will have a match).</p>
+      </div>
+
+      <div className="setup-grid">
+        {state.groups.map((g, gi) => (
+          <div className="group-setup-card" key={gi}>
+            <h3>Group {g.name}</h3>
+            {g.players.map((p, pi) => {
+              const crestState = state.logos[p];
+              const hasCrest = crestState && crestState !== 'NOT_FOUND';
+              return (
+                <div key={pi} className="player-input-row">
+                  {hasCrest
+                    ? <img className="crest-thumb" src={crestState} alt="" />
+                    : <div className="crest-thumb crest-thumb-empty"><i className="ti ti-shield"></i></div>
+                  }
+                  <input className="player-input" type="text"
+                    placeholder={`Club ${pi+1}`} value={p}
+                    onChange={e => updatePlayer(gi, pi, e.target.value)} />
+                  <button type="button" className="crest-fetch-btn" title="Fetch club crest"
+                    disabled={!p.trim() || loadingCrest===p}
+                    onClick={() => handleFetchCrest(p)}>
+                    {loadingCrest===p ? '…' : '⌖'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <div className="btn-row">
+        <button className="btn btn-primary" disabled={!ready} onClick={onStart}>
+          Start round robin ({filledCount}/16 entered)
+        </button>
+        <button className="btn btn-ghost" onClick={fillDemo}>Fill demo names</button>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== Groups Panel ===================== */
+function GroupsPanel({state, setMatchScore, setManualTiebreak, groupsComplete, onProceed, showToast}){
+  return (
+    <div className="panel">
+      <div className="section-head">
+        <h2>Group stage — round robin</h2>
+        <p>Enter the goals for each side of every match. The winner is set automatically once both scores are in. Top 2 in each group advance directly to the qualifier bracket. 3rd & 4th play a rematch next.</p>
+      </div>
+
+      <div className="groups-wrap">
+        {state.groups.map((g, gi) => (
+          <GroupCard key={gi} group={g} groupIdx={gi} setMatchScore={setMatchScore} setManualTiebreak={setManualTiebreak} logos={state.logos} />
+        ))}
+      </div>
+
+      <div className="btn-row">
+        <button className="btn btn-primary" disabled={!groupsComplete} onClick={onProceed}>
+          {groupsComplete ? 'Lock standings → set up rematch' : 'Finish all matches to continue'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CrestIcon({name, logos, size}){
+  const url = logos && logos[name];
+  const dim = size || 18;
+  if(!url || url === 'NOT_FOUND') return null;
+  return <img src={url} alt="" style={{width: dim, height: dim, objectFit:'contain', verticalAlign:'middle', marginRight: 6, borderRadius: 3}} />;
+}
+
+function GroupCard({group, groupIdx, setMatchScore, setManualTiebreak, logos}){
+  const standings = computeStandings(group);
+  const complete = groupComplete(group);
+  const playedCount = group.matches.filter(m => m.winner != null || isTiedScore(m.score1, m.score2)).length;
+  const tiedGroups = (standings[0] && standings[0].tiedGroups) || [];
+  const manualOrder = group.manualTiebreak || [];
+  // A tied group still needs the user's input if not every member of it appears in the manual order.
+  const unresolvedTiedGroups = tiedGroups.filter(tg => tg.length > 1 && !tg.every(idx => manualOrder.includes(idx)));
+
+  return (
+    <div className="group-card">
+      <div className="group-card-head">
+        <h3>Group {group.name}</h3>
+        <span className={`group-status ${complete?'complete':''}`}>
+          {complete ? 'COMPLETE' : `${playedCount}/6 PLAYED`}
+        </span>
+      </div>
+
+      <table className="standings">
+        <thead>
+          <tr><th>#</th><th>Player</th><th className="num">W</th><th className="num">GF</th><th className="num">GA</th><th className="num">GD</th></tr>
+        </thead>
+        <tbody>
+          {standings.map(row => (
+            <tr key={row.idx} className={`rank-${row.rank}`}>
+              <td className="rk">{row.rank}</td>
+              <td className="pname">
+                <CrestIcon name={row.name} logos={logos} />
+                {row.name}
+                {row.rank <= 2 && <span className="tag tag-q">Qualified</span>}
+                {row.rank >= 3 && <span className="tag tag-r">Rematch</span>}
+              </td>
+              <td className="num">{row.wins}</td>
+              <td className="num">{row.goalsFor}</td>
+              <td className="num">{row.goalsAgainst}</td>
+              <td className="num">{row.goalDiff > 0 ? '+'+row.goalDiff : row.goalDiff}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {unresolvedTiedGroups.map((tg, ti) => (
+        <TiebreakControl key={ti} group={group} tiedIdxs={tg} logos={logos}
+          onSetOrder={(orderedIdxs) => setManualTiebreak(groupIdx, tg, orderedIdxs)} />
+      ))}
+
+      <div className="matches-list">
+        <h4>Matches</h4>
+        {group.matches.map((m, mi) => (
+          <div key={mi}>
+            <div className="match-row score-row">
+              <div className={`match-p ${m.winner===m.p1?'winner':''}`}>
+                <CrestIcon name={group.players[m.p1]} logos={logos} size={16} />
+                {group.players[m.p1] || '—'}
+              </div>
+              <input type="number" min="0" className="score-input"
+                value={m.score1 == null ? '' : m.score1}
+                onChange={e => setMatchScore(groupIdx, mi, 'score1', e.target.value === '' ? null : e.target.value)} />
+              <span className="match-vs">–</span>
+              <input type="number" min="0" className="score-input"
+                value={m.score2 == null ? '' : m.score2}
+                onChange={e => setMatchScore(groupIdx, mi, 'score2', e.target.value === '' ? null : e.target.value)} />
+              <div className={`match-p ${m.winner===m.p2?'winner':''}`}>
+                <CrestIcon name={group.players[m.p2]} logos={logos} size={16} />
+                {group.players[m.p2] || '—'}
+              </div>
+            </div>
+            {isTiedScore(m.score1, m.score2) && (
+              <div className="draw-note">Draw — counts toward goal difference.</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Shown when two or more players in a group are exactly tied on wins, goal difference, and goals
+// scored. The user clicks players in order (most-qualified first) to manually settle the ranking.
+function TiebreakControl({group, tiedIdxs, logos, onSetOrder}){
+  const manualOrder = group.manualTiebreak || [];
+  const chosenSoFar = manualOrder.filter(idx => tiedIdxs.includes(idx));
+
+  function handleClick(idx){
+    if(chosenSoFar.includes(idx)) return; // already picked
+    const next = [...chosenSoFar, idx];
+    onSetOrder(next);
+  }
+
+  return (
+    <div className="tiebreak-box">
+      <div className="tiebreak-label">
+        {tiedIdxs.length} players tied on wins and goal difference — click in order, best first, to settle the ranking.
+      </div>
+      <div className="tiebreak-options">
+        {tiedIdxs.map(idx => {
+          const pickedRank = chosenSoFar.indexOf(idx);
+          return (
+            <div key={idx}
+              className={`tiebreak-chip ${pickedRank !== -1 ? 'picked':''}`}
+              onClick={() => handleClick(idx)}>
+              <CrestIcon name={group.players[idx]} logos={logos} size={14} />
+              {group.players[idx]}
+              {pickedRank !== -1 && <span className="tiebreak-rank">#{pickedRank+1}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== Rematch Panel ===================== */
+function RematchPanel({rematch, setRematchScore, complete, onProceed, groups, logos}){
+  return (
+    <div className="panel">
+      <div className="section-head">
+        <h2>3rd / 4th place rematch</h2>
+        <p>Within each group, the 3rd and 4th place finishers play one more match. Enter the goals — the four winners join the eight group qualifiers in the bracket.</p>
+      </div>
+
+      <div className="rematch-grid">
+        {rematch.map((r, i) => (
+          <div className="rematch-card" key={i}>
+            <div className="rlabel">Group <span className="rgroup">{groups[r.groupIdx].name}</span> · 3rd vs 4th</div>
+            <div className="match-row score-row">
+              <div className={`match-p ${r.winner===r.p3?'winner':''}`}><CrestIcon name={r.p3} logos={logos} size={16} />{r.p3}</div>
+              <input type="number" min="0" className="score-input"
+                value={r.score3 == null ? '' : r.score3}
+                onChange={e => setRematchScore(i, 'score3', e.target.value === '' ? null : e.target.value)} />
+              <span className="match-vs">–</span>
+              <input type="number" min="0" className="score-input"
+                value={r.score4 == null ? '' : r.score4}
+                onChange={e => setRematchScore(i, 'score4', e.target.value === '' ? null : e.target.value)} />
+              <div className={`match-p ${r.winner===r.p4?'winner':''}`}><CrestIcon name={r.p4} logos={logos} size={16} />{r.p4}</div>
+            </div>
+            {isTiedScore(r.score3, r.score4) && (
+              <div className="tie-warning">Scores are tied — change one to set a winner.</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="btn-row">
+        <button className="btn btn-primary" disabled={!complete} onClick={onProceed}>
+          {complete ? 'Proceed to qualifier bracket' : 'Decide all rematches to continue'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== Bracket Panel ===================== */
+function buildPool(state){
+  // Direct qualifiers: top2 from each group
+  const direct = [];
+  state.groups.forEach(g => {
+    const standings = computeStandings(g);
+    standings.slice(0,2).forEach(row => {
+      direct.push({ name: row.name, source: `G${g.name} #${row.rank}` });
+    });
+  });
+  // Rematch winners
+  const rematchWinners = state.rematch.map(r => {
+    const gName = state.groups[r.groupIdx].name;
+    return { name: r.winner, source: `G${gName} rematch` };
+  });
+  return [...direct, ...rematchWinners]; // 12 players total
+}
+
+function BracketPanel({state, setState, showToast}){
+  const pool = buildPool(state);
+  const placedNames = new Set(state.bracket.slots.filter(Boolean).map(s => s.name));
+  const availablePool = pool.filter(p => !placedNames.has(p.name));
+  const [dragName, setDragName] = useState(null);
+  const [dragOverSlot, setDragOverSlot] = useState(null);
+
+  function placeInSlot(slotIdx, playerObj){
+    setState(s => {
+      const slots = s.bracket.slots.slice();
+      slots[slotIdx] = playerObj;
+      return {...s, bracket: {...s.bracket, slots}};
+    });
+  }
+
+  function clearSlot(slotIdx){
+    setState(s => {
+      const slots = s.bracket.slots.slice();
+      slots[slotIdx] = null;
+      // Also clear any downstream winners/scores that depended on this slot
+      return {...s, bracket: {...s.bracket, slots, winners: {}, scores: {}}};
+    });
+  }
+
+  function autoSeed(){
+    setState(s => {
+      const p = buildPool(s);
+      const slots = Array(BRACKET_SIZE).fill(null);
+      // First 6 qualifiers go left (slots 0-5), next 6 go right (slots 6-11).
+      // User can drag to rearrange afterward, including swapping across halves.
+      p.forEach((player, i) => { slots[i] = player; });
+      return {...s, bracket: {...s.bracket, slots, winners: {}, scores: {}, r2bye: {left:null, right:null}}};
+    });
+    showToast('Auto-seeded 6 left / 6 right — drag chips to fine-tune');
+  }
+
+  function clearBracket(){
+    setState(s => ({...s, bracket: { slots: Array(BRACKET_SIZE).fill(null), winners: {}, scores: {}, r2bye: {left:null, right:null} }}));
+  }
+
+  // Sets one side's goal count for a bracket match and derives the winner automatically.
+  function setScore(roundKey, side, value, pa, pb){
+    setState(s => {
+      const prevScore = s.bracket.scores[roundKey] || {a:null, b:null};
+      const newScore = {...prevScore, [side]: value};
+      const scores = {...s.bracket.scores, [roundKey]: newScore};
+      const winners = {...s.bracket.winners};
+      const winnerName = deriveWinnerFromScoresNamed(newScore.a, newScore.b, pa && pa.name, pb && pb.name);
+      if(winnerName) winners[roundKey] = winnerName;
+      else delete winners[roundKey];
+      return {...s, bracket: {...s.bracket, scores, winners}};
+    });
+  }
+
+  // Sets which of the 3 round-1 winners (local index 0,1,2 within the half) gets the round-2 bye.
+  function setR2Bye(sideKey, localIdx){
+    setState(s => ({...s, bracket: {...s.bracket, r2bye: {...s.bracket.r2bye, [sideKey]: localIdx}}}));
+  }
+
+  function matchResult(pair, key){
+    const [pa,pb] = pair;
+    const winnerName = state.bracket.winners[key];
+    if(pa && !pb) return {pa,pb,autoWinner:pa.name,key,bye:true};
+    if(pb && !pa) return {pa,pb,autoWinner:pb.name,key,bye:true};
+    if(!pa && !pb) return {pa,pb,autoWinner:null,key,bye:false};
+    return {pa,pb,autoWinner:winnerName||null,key,bye:false};
+  }
+
+  // Computes the full chain for one half: 3 R1 matches -> winners -> user picks 1 of 3 to bye ->
+  // remaining 2 play R2 -> R2 winner + bye player play the half-final -> half finalist.
+  function computeHalf(sideKey, r1Pairs){
+    const r1Results = r1Pairs.map((pair, mi) => {
+      const pa = state.bracket.slots[pair[0]];
+      const pb = state.bracket.slots[pair[1]];
+      const key = `${sideKey}-r1-${mi}`;
+      return matchResult([pa, pb], key);
+    });
+    const r1Winners = r1Results.map(r => r.autoWinner ? {name: r.autoWinner, source: r.bye ? 'bye':'R1 winner'} : null);
+
+    const byeLocalIdx = state.bracket.r2bye[sideKey]; // 0, 1, 2, or null
+    const byePlayer = (byeLocalIdx != null) ? r1Winners[byeLocalIdx] : null;
+    // Only form the round-2 match once a bye has actually been picked; otherwise leave both entrants empty
+    // rather than silently dropping the third R1 winner into a 2-player match.
+    const r2Entrants = (byeLocalIdx != null) ? r1Winners.filter((_, i) => i !== byeLocalIdx) : [null, null];
+    // r2Entrants has up to 2 players (the ones not chosen for the bye)
+    const r2Key = `${sideKey}-r2-0`;
+    const r2Result = matchResult([r2Entrants[0] || null, r2Entrants[1] || null], r2Key);
+    const r2WinnerObj = r2Result.autoWinner ? {name: r2Result.autoWinner, source: r2Result.bye ? 'bye':'R2 winner'} : null;
+
+    const halfFinalKey = `${sideKey}-hf-0`;
+    const halfFinalResult = matchResult([byePlayer, r2WinnerObj], halfFinalKey);
+    const halfFinalist = halfFinalResult.autoWinner ? {name: halfFinalResult.autoWinner, source: 'Half finalist'} : null;
+
+    return { r1Results, r1Winners, byeLocalIdx, byePlayer, r2Entrants, r2Result, r2WinnerObj, halfFinalResult, halfFinalist };
+  }
+
+  const leftHalf = computeHalf('left', LEFT_R1_PAIRS);
+  const rightHalf = computeHalf('right', RIGHT_R1_PAIRS);
+  const finalResult = matchResult([leftHalf.halfFinalist, rightHalf.halfFinalist], 'final-0');
+  const champion = finalResult.autoWinner;
+
+  function onDragStartChip(player){ setDragName(player); }
+  function onDropSlot(slotIdx){
+    if(dragName){
+      placeInSlot(slotIdx, dragName);
+      setDragName(null);
+    }
+    setDragOverSlot(null);
+  }
+
+  return (
+    <div className="panel">
+      <div className="section-head">
+        <h2>Qualifier bracket</h2>
+        <p>Drag a player chip into any of the 12 slots — 6 on the left, 6 on the right. Each half plays down to 1 finalist: 3 first-round matches, then pick which winner sits out with a bye while the other two play round 2, then the bye player meets the round-2 winner in the half-final. The two half-finalists meet in the final.</p>
+      </div>
+
+      <div className="bracket-tools">
+        <button className="btn btn-primary" onClick={autoSeed}>Auto-seed (6 left / 6 right)</button>
+        <button className="btn btn-ghost" onClick={clearBracket}>Clear bracket</button>
+      </div>
+
+      <div className="pool-bar">
+        {availablePool.length === 0 && <span className="pool-empty">All 12 qualifiers placed.</span>}
+        {availablePool.map((p, i) => (
+          <div className="pool-chip" key={p.name+i} draggable
+            onDragStart={() => onDragStartChip(p)}>
+            <CrestIcon name={p.name} logos={state.logos} size={16} />
+            {p.name} <span className="src">{p.source}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="bracket-scroll-hint">← scroll sideways to see the full bracket →</div>
+      <div className="bracket-scroll">
+        <div className="bracket bracket-mirrored">
+
+          {/* LEFT HALF */}
+          <div className="bracket-half bracket-half-left">
+            <BracketRound title="Round 1" matches={[0,1,2]}
+              render={(mi) => (
+                <SlotMatch
+                  slotA={state.bracket.slots[LEFT_R1_PAIRS[mi][0]]}
+                  slotB={state.bracket.slots[LEFT_R1_PAIRS[mi][1]]}
+                  isSeedSlots={true} logos={state.logos}
+                  slotIdxA={LEFT_R1_PAIRS[mi][0]} slotIdxB={LEFT_R1_PAIRS[mi][1]}
+                  onDropA={() => onDropSlot(LEFT_R1_PAIRS[mi][0])}
+                  onDropB={() => onDropSlot(LEFT_R1_PAIRS[mi][1])}
+                  onClearA={() => clearSlot(LEFT_R1_PAIRS[mi][0])}
+                  onClearB={() => clearSlot(LEFT_R1_PAIRS[mi][1])}
+                  dragOverSlot={dragOverSlot} setDragOverSlot={setDragOverSlot}
+                  result={leftHalf.r1Results[mi]}
+                  score={state.bracket.scores[`left-r1-${mi}`]}
+                  onScoreChange={(side, value, pa, pb) => setScore(`left-r1-${mi}`, side, value, pa, pb)}
+                />
+              )} />
+            <BracketRound title="Pick the bye" matches={[0]}
+              render={() => (
+                <ByePicker winners={leftHalf.r1Winners} byeLocalIdx={leftHalf.byeLocalIdx}
+                  onPick={(idx) => setR2Bye('left', idx)} logos={state.logos} />
+              )} />
+            <BracketRound title="Round 2" matches={[0]}
+              render={() => (
+                <SlotMatch
+                  slotA={leftHalf.r2Entrants[0]} slotB={leftHalf.r2Entrants[1]}
+                  isSeedSlots={false} logos={state.logos}
+                  result={leftHalf.r2Result}
+                  score={state.bracket.scores['left-r2-0']}
+                  onScoreChange={(side, value, pa, pb) => setScore('left-r2-0', side, value, pa, pb)}
+                />
+              )} />
+            <BracketRound title="Half-final" matches={[0]}
+              render={() => (
+                <SlotMatch
+                  slotA={leftHalf.byePlayer} slotB={leftHalf.r2WinnerObj}
+                  isSeedSlots={false} logos={state.logos}
+                  result={leftHalf.halfFinalResult}
+                  score={state.bracket.scores['left-hf-0']}
+                  onScoreChange={(side, value, pa, pb) => setScore('left-hf-0', side, value, pa, pb)}
+                />
+              )} />
+          </div>
+
+          {/* CENTER: final + champion */}
+          <div className="bracket-half bracket-center">
+            <BracketRound title="Final" matches={[0]}
+              render={() => (
+                <SlotMatch
+                  slotA={leftHalf.halfFinalist} slotB={rightHalf.halfFinalist}
+                  isSeedSlots={false} logos={state.logos}
+                  result={finalResult}
+                  score={state.bracket.scores['final-0']}
+                  onScoreChange={(side, value, pa, pb) => setScore('final-0', side, value, pa, pb)}
+                />
+              )} />
+            <div className="bracket-round" style={{justifyContent:'center'}}>
+              <div className="bracket-round-title">Champion</div>
+              <div className="champion-card">
+                <div className="ctitle">Winner</div>
+                <div className={`cname ${champion?'':'empty'}`}>{champion || 'TBD'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT HALF: mirrored */}
+          <div className="bracket-half bracket-half-right">
+            <BracketRound title="Half-final" matches={[0]}
+              render={() => (
+                <SlotMatch
+                  slotA={rightHalf.byePlayer} slotB={rightHalf.r2WinnerObj}
+                  isSeedSlots={false} logos={state.logos}
+                  result={rightHalf.halfFinalResult}
+                  score={state.bracket.scores['right-hf-0']}
+                  onScoreChange={(side, value, pa, pb) => setScore('right-hf-0', side, value, pa, pb)}
+                />
+              )} />
+            <BracketRound title="Round 2" matches={[0]}
+              render={() => (
+                <SlotMatch
+                  slotA={rightHalf.r2Entrants[0]} slotB={rightHalf.r2Entrants[1]}
+                  isSeedSlots={false} logos={state.logos}
+                  result={rightHalf.r2Result}
+                  score={state.bracket.scores['right-r2-0']}
+                  onScoreChange={(side, value, pa, pb) => setScore('right-r2-0', side, value, pa, pb)}
+                />
+              )} />
+            <BracketRound title="Pick the bye" matches={[0]}
+              render={() => (
+                <ByePicker winners={rightHalf.r1Winners} byeLocalIdx={rightHalf.byeLocalIdx}
+                  onPick={(idx) => setR2Bye('right', idx)} logos={state.logos} />
+              )} />
+            <BracketRound title="Round 1" matches={[0,1,2]}
+              render={(mi) => (
+                <SlotMatch
+                  slotA={state.bracket.slots[RIGHT_R1_PAIRS[mi][0]]}
+                  slotB={state.bracket.slots[RIGHT_R1_PAIRS[mi][1]]}
+                  isSeedSlots={true} logos={state.logos}
+                  slotIdxA={RIGHT_R1_PAIRS[mi][0]} slotIdxB={RIGHT_R1_PAIRS[mi][1]}
+                  onDropA={() => onDropSlot(RIGHT_R1_PAIRS[mi][0])}
+                  onDropB={() => onDropSlot(RIGHT_R1_PAIRS[mi][1])}
+                  onClearA={() => clearSlot(RIGHT_R1_PAIRS[mi][0])}
+                  onClearB={() => clearSlot(RIGHT_R1_PAIRS[mi][1])}
+                  dragOverSlot={dragOverSlot} setDragOverSlot={setDragOverSlot}
+                  result={rightHalf.r1Results[mi]}
+                  score={state.bracket.scores[`right-r1-${mi}`]}
+                  onScoreChange={(side, value, pa, pb) => setScore(`right-r1-${mi}`, side, value, pa, pb)}
+                />
+              )} />
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Lets the user choose which of the 3 round-1 winners sits out with a bye into the half-final,
+// while the other two play round 2. Shown as 3 small selectable rows.
+function ByePicker({winners, byeLocalIdx, onPick, logos}){
+  return (
+    <div className="bye-picker">
+      {winners.map((w, idx) => (
+        <div key={idx}
+          className={`bye-picker-row ${!w?'empty':''} ${byeLocalIdx===idx?'selected':''}`}
+          onClick={() => w && onPick(idx)}>
+          <span className="pn">
+            {w && <CrestIcon name={w.name} logos={logos} size={14} />}
+            {w ? w.name : 'TBD'}
+          </span>
+          {w && <span className="bye-tag">{byeLocalIdx===idx ? 'BYE' : 'pick'}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BracketRound({title, matches, render}){
+  return (
+    <div className="bracket-round">
+      <div className="bracket-round-title">{title}</div>
+      {matches.map((mi) => (
+        <div className="bracket-match-wrap" key={mi}>
+          {render(mi)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SlotMatch({slotA, slotB, isSeedSlots, slotIdxA, slotIdxB, onDropA, onDropB, onClearA, onClearB, dragOverSlot, setDragOverSlot, result, logos, score, onScoreChange}){
+  const winnerName = result ? result.autoWinner : null;
+  const bothFilled = slotA && slotB;
+  const needsScore = bothFilled && !result.bye;
+  const sc = score || {a:null, b:null};
+
+  function renderSlot(player, slotIdx, onDrop, onClear, sideKey, side){
+    const showScoreInput = needsScore && player;
+    if(isSeedSlots){
+      const isOver = dragOverSlot === sideKey;
+      return (
+        <div
+          className={`bracket-slot droppable ${isOver?'dragover':''} ${!player?'empty':''} ${winnerName && player && winnerName===player.name ? 'winner':''}`}
+          onDragOver={(e) => { e.preventDefault(); setDragOverSlot(sideKey); }}
+          onDragLeave={() => setDragOverSlot(null)}
+          onDrop={(e) => { e.preventDefault(); onDrop(); }}
+        >
+          <span className="pn">
+            {player && <CrestIcon name={player.name} logos={logos} size={16} />}
+            {player ? player.name : 'Drop player / bye'}
+          </span>
+          {showScoreInput && (
+            <input type="number" min="0" className="bracket-score-input"
+              value={sc[side] == null ? '' : sc[side]}
+              onChange={e => onScoreChange(side, e.target.value === '' ? null : e.target.value, slotA, slotB)} />
+          )}
+          {player && <span className="seed" title={player.source}>{player.source}</span>}
+          {player && <span className="clear-x" onClick={(e) => { e.stopPropagation(); onClear(); }}>×</span>}
+        </div>
+      );
+    }
+    return (
+      <div className={`bracket-slot ${!player?'empty':''} ${winnerName && player && winnerName===player.name ? 'winner':''}`}>
+        <span className="pn">
+          {player && <CrestIcon name={player.name} logos={logos} size={16} />}
+          {player ? player.name : 'TBD'}
+        </span>
+        {showScoreInput && (
+          <input type="number" min="0" className="bracket-score-input"
+            value={sc[side] == null ? '' : sc[side]}
+            onChange={e => onScoreChange(side, e.target.value === '' ? null : e.target.value, slotA, slotB)} />
+        )}
+        {player && player.source && <span className="seed">{player.source}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="bracket-match">
+        {renderSlot(slotA, slotIdxA, onDropA, onClearA, `${slotIdxA}`, 'a')}
+        {renderSlot(slotB, slotIdxB, onDropB, onClearB, `${slotIdxB}`, 'b')}
+      </div>
+      {needsScore && isTiedScore(sc.a, sc.b) && (
+        <div className="tie-warning bracket-tie-warning">Tied — change a score to advance.</div>
+      )}
+    </div>
+  );
+}
+
+/* ===================== Mount ===================== */
+try {
+  const root = ReactDOM.createRoot(document.getElementById('app'));
+  document.getElementById('app').dataset.mounted = 'true';
+  root.render(<App />);
+} catch(err) {
+  document.getElementById('app').innerHTML = '<div style="max-width:600px;margin:80px auto;text-align:center;font-family:sans-serif;color:#ff6b6b;padding:20px;border:1px solid #ff6b6b;border-radius:8px;">Render error: ' + err.message + '</div>';
+  console.error(err);
+}
+</script>
+
+<script>
+  (function(){
+    try {
+      const source = document.getElementById('app-source').textContent;
+      const result = Babel.transform(source, {
+        presets: [['react', { runtime: 'classic' }]]
+      });
+      const script = document.createElement('script');
+      script.textContent = result.code;
+      document.body.appendChild(script);
+    } catch(err) {
+      const appEl = document.getElementById('app');
+      appEl.innerHTML = '<div style="max-width:600px;margin:80px auto;text-align:center;font-family:sans-serif;color:#ff6b6b;padding:20px;border:1px solid #ff6b6b;border-radius:8px;">Babel transform error: ' + err.message + '</div>';
+      console.error(err);
+    }
+  })();
+</script>
+</body>
+</html>
