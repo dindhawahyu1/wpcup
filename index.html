@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>16-Player Tournament Bracket</title>
+<title>Paku Jaya Cup</title>
 <style>
   :root{
     --bg: #14151a;
@@ -1027,8 +1027,8 @@ function GroupCard({group, groupIdx, setMatchScore, setManualTiebreak, logos}){
               <td className="pname">
                 <CrestIcon name={row.name} logos={logos} />
                 {row.name}
-                {row.rank <= 2 && <span className="tag tag-q">Qualified</span>}
-                {row.rank >= 3 && <span className="tag tag-r">Rematch</span>}
+                {complete && row.rank <= 2 && <span className="tag tag-q">Qualified</span>}
+                {complete && row.rank >= 3 && <span className="tag tag-r">Rematch</span>}
               </td>
               <td className="num">{row.wins}</td>
               <td className="num">{row.goalsFor}</td>
